@@ -1,0 +1,45 @@
+Options -Indexes
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^$ public/ [L]
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; font-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'"
+</IfModule>
+
+<IfModule mod_php.c>
+    <FilesMatch "\.(php|phtml|phar)$">
+        php_flag engine off
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_php7.c>
+    <FilesMatch "\.(php|phtml|phar)$">
+        php_flag engine off
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_php8.c>
+    <FilesMatch "\.(php|phtml|phar)$">
+        php_flag engine off
+    </FilesMatch>
+</IfModule>
+
+<FilesMatch "\.(php|phtml|phar)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(env|sqlite|sqlite3|key|log|md|json|yml|yaml|ini|sample|bak|sql|sh|swift|plist)$">
+    Require all denied
+</FilesMatch>

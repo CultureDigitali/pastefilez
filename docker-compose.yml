@@ -1,0 +1,26 @@
+services:
+  pastefilez:
+    build: .
+    container_name: pastefilez
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      APP_NAME: PasteFilez
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: http://localhost:8080
+      DEFAULT_LANGUAGE: en
+      APP_TIMEZONE: Europe/Rome
+      COOKIE_SECURE: "false"
+      ENCRYPT_FILES_AT_REST: "false"
+      MAX_UPLOAD_MB: "100"
+      QUOTA_PER_USER_MB: "10240"
+      LOG_LEVEL: info
+    volumes:
+      - ./storage:/app/storage
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8080) ? 0 : 1);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

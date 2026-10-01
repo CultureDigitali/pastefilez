@@ -1,0 +1,56 @@
+Options -Indexes
+ServerSignature Off
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Resource-Policy "same-origin"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+<FilesMatch "\.(env|sqlite|sqlite3|key|log|md|json|yml|yaml|ini|sample|bak|sql|sh|swift|plist)$">
+    Require all denied
+</FilesMatch>
+
+<Files "install.php">
+    Require all denied
+</Files>
+
+<FilesMatch "^index\.php$">
+    Require all granted
+    <IfModule mod_php.c>
+        php_flag engine on
+    </IfModule>
+    <IfModule mod_php7.c>
+        php_flag engine on
+    </IfModule>
+    <IfModule mod_php8.c>
+        php_flag engine on
+    </IfModule>
+</FilesMatch>
+
+<FilesMatch "\.(php|phtml|phar)$">
+    Require all denied
+</FilesMatch>
+
+php_value upload_max_filesize 10240M
+php_value post_max_size 10240M
+php_value memory_limit 512M
+php_value max_execution_time 300
+php_value max_input_time 300
+php_value session.cookie_httponly 1
+php_value session.cookie_samesite "Strict"
+php_value session.use_strict_mode 1
+php_value session.use_only_cookies 1
+php_value expose_php Off

@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, gd, mbstring, curl, sodium, fileinfo
+          coverage: none
+      - name: php -l su tutti i file
+        run: |
+          find app bin public tests -name '*.php' -print0 \
+            | xargs -0 -n1 -P4 php -l | grep -v 'No syntax errors' && exit 1 || true
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, gd, mbstring, curl, sodium, fileinfo
+          coverage: none
+      - name: suite di test
+        run: php tests/run.php
+
+  suite-encrypted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, gd, mbstring, curl, sodium, fileinfo
+          coverage: none
+      - name: suite con cifratura at rest attiva
+        run: php tests/run.php
+        env:
+          ENCRYPT_FILES_AT_REST: 'true'

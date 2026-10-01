@@ -1,0 +1,60 @@
+# Secrets & config
+.env
+.env.local
+.env.*.local
+# .env.example is committed at the repo root
+
+# Runtime storage: NEVER commit user data
+storage/.key
+storage/*.sqlite
+storage/*.sqlite-shm
+storage/*.sqlite-wal
+storage/app.sqlite*
+storage/files/
+storage/thumbs/
+storage/e2e/
+storage/keys/
+storage/cloud/
+storage/cache/
+storage/logs/
+storage/tmp/
+storage/keys/
+storage/uploads/
+
+# Keep the folder structure but empty
+storage/*
+!storage/.gitkeep
+
+# OS / editor
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# Agent scratch
+.gigiloop/
+.opencode/
+AGENTS.local.md
+
+# Local tooling
+phpunit.xml
+.phpunit.result.cache
+.php-cs-fixer.cache
+composer.lock
+vendor/
+
+# Logs & temp
+*.log
+npm-debug.log*
+*.tmp
+*.bak
+*.orig

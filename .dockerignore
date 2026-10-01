@@ -1,0 +1,15 @@
+.git
+.github
+storage/files
+storage/thumbs
+storage/e2e
+storage/tmp
+storage/logs
+storage/cache
+storage/*.sqlite*
+storage/.key
+.env
+tests
+docs
+*.md
+!README.md

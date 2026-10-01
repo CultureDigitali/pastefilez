@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.pastefilez.clipboard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOUR_USER/Applications/PasteFilezClipboard.app/Contents/MacOS/PasteFilezClipboard</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/pastefilez-clipboard.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/pastefilez-clipboard.err</string>
+</dict>
+</plist>
