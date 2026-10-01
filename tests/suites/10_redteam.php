@@ -70,14 +70,17 @@ T::ok(HttpClient::isBlockedHost('[::1]'), 'bracketed ipv6 loopback host blocked'
 
 T::group('redteam/env-precedence');
 
-$envFile = $sandbox . '/.env';
-file_put_contents($envFile, "APP_NAME=FromFile\nAPP_TIMEZONE=Europe/Rome\n");
+$envFile = dirname(__DIR__, 2) . '/.env';
+$hadRealEnv = is_file($envFile);
+if ($hadRealEnv) rename($envFile, $envFile . '.testbak');
+file_put_contents($envFile, "APP_NAME=FromFile\nAPP_TIMEZONE=Europe/Rome\nMAX_UPLOAD_MB=1\n");
 $cwd = getcwd();
 $out = shell_exec('cd ' . escapeshellarg(dirname(__DIR__, 2)) . ' && APP_NAME=FromRealEnv MAX_UPLOAD_MB=999 php -r '
     . escapeshellarg('require "app/Core/autoload.php"; echo \App\Core\Config::get("app_name"), "|", \App\Core\Config::get("max_upload_mb"), "|", \App\Core\Config::get("timezone");')
     . ' 2>&1');
 T::eq('FromRealEnv|999|Europe/Rome', trim((string)$out), 'real env wins, .env fills the rest, no silent default fallback');
 @unlink($envFile);
+if ($hadRealEnv) rename($envFile . '.testbak', $envFile);
 
 T::group('redteam/env-writer-backreferences');
 
