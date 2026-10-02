@@ -388,5 +388,7 @@
   "no_payload": "No payload received.",
   "write_failed": "Write failed.",
   "owner_gone": "The owner no longer exists.",
-  "too_many": "Too many attempts, try again later."
+  "too_many": "Too many attempts, try again later.",
+  "js.qr_unavailable": "QR unavailable: use the secret below.",
+  "ai_key_missing": "Missing or invalid API key."
 }

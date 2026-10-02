@@ -91,8 +91,7 @@ $shareUrl = $item['share_token'] ? url('s/' . $item['share_token']) : '';
           <input class="input text-xs" value="<?= e($shareUrl) ?>" readonly aria-label="<?= e(t('items.share.url')) ?>">
           <button class="btn btn-sm" onclick="PZ.copy('<?= e($shareUrl) ?>')">📋</button>
         </div>
-        <div id="qrcode" class="mt-3 bg-white p-2 rounded inline-block"></div>
-        <script>PZ.qr(document.getElementById('qrcode'), '<?= e($shareUrl) ?>');</script>
+        <div data-qr="<?= e($shareUrl) ?>" id="qrcode" class="mt-3 bg-white p-2 rounded inline-block"></div>
       <?php else: ?>
         <p class="text-sm text-fg-2"><?= e(t('share.copy_hint')) ?></p>
       <?php endif; ?>

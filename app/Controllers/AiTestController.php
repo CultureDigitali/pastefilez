@@ -21,10 +21,16 @@ final class AiTestController extends Controller
         $id = (int)($params['id'] ?? 0);
         $row = Db::first('SELECT * FROM api_keys WHERE id = ? AND user_id = ?', [$id, $user['id']]);
         if (!$row) Response::json(['ok' => false, 'error' => 'not_found'], 404);
-        $key = Crypto::decryptFromBase64($row['encrypted_key']);
-        if (!$key) Response::json(['ok' => false, 'error' => 'decrypt']);
+        $key = Crypto::decryptFromBase64($row['encrypted_key']) ?? '';
+        if ($key === '' && $row['provider'] !== 'ollama') {
+            Session::set('flash_error', 'ai_key_missing');
+            Response::redirect('/settings/ai');
+        }
         $client = AiProvider::factory($row['provider'], $key, (int)$user['id']);
-        if (!$client) Response::json(['ok' => false, 'error' => t('ai.test.unconfigured')]);
+        if (!$client) {
+            Session::set('flash_error', 'ai_key_missing');
+            Response::redirect('/settings/ai');
+        }
         $r = $client->testKey();
         $status = $r['ok'] ? 'ok' : 'fail';
         $msg = $r['ok'] ? null : ($r['error'] ?? 'unknown');
@@ -45,10 +51,16 @@ final class AiTestController extends Controller
         $id = (int)($params['id'] ?? 0);
         $row = Db::first('SELECT * FROM api_keys WHERE id = ? AND user_id = ?', [$id, $user['id']]);
         if (!$row) Response::json(['ok' => false, 'error' => 'not_found'], 404);
-        $key = Crypto::decryptFromBase64($row['encrypted_key']);
-        if (!$key) Response::json(['ok' => false, 'error' => 'decrypt']);
+        $key = Crypto::decryptFromBase64($row['encrypted_key']) ?? '';
+        if ($key === '' && $row['provider'] !== 'ollama') {
+            Session::set('flash_error', 'ai_key_missing');
+            Response::redirect('/settings/ai');
+        }
         $client = AiProvider::factory($row['provider'], $key, (int)$user['id']);
-        if (!$client) Response::json(['ok' => false, 'error' => t('ai.test.unconfigured')]);
+        if (!$client) {
+            Session::set('flash_error', 'ai_key_missing');
+            Response::redirect('/settings/ai');
+        }
         $models = $client->listModels();
         $now = time();
         $pdo = Db::pdo();

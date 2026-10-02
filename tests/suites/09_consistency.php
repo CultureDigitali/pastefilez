@@ -97,3 +97,83 @@ foreach (['layouts/main.php', 'layouts/centered.php'] as $l) {
     T::contains($src, 'window.PZ_T', "{$l} aliases window.PZ_T");
     T::contains($src, 'JSON_HEX_TAG', "{$l} hex-escapes the injected JSON");
 }
+
+T::group('consistency/docs-match-the-code');
+
+$root = dirname(__DIR__, 2);
+$docs = [];
+foreach (['README.md', 'AGENTS.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'CONTRIBUTING.en.md', 'SECURITY.md'] as $f) {
+    $docs[$f] = (string)file_get_contents($root . '/' . $f);
+}
+$all = implode("\n", $docs);
+
+// the number of assertions is the value most likely to go stale
+preg_match_all('/\bT::(ok|eq|contains|notContains|throws)\s*\(/', implode("\n", array_map(
+    static fn(string $p): string => (string)file_get_contents($p),
+    glob($root . '/tests/suites/*.php') ?: []
+)), $tc);
+$real = count($tc[0]);
+$suites = count(glob($root . '/tests/suites/*.php') ?: []);
+if (preg_match_all('/(\d{2}) suite/i', $all, $sm)) {
+    foreach (array_unique($sm[1]) as $claimedSuites) {
+        T::eq($suites, (int)$claimedSuites, 'the suite count in the docs matches tests/suites/');
+    }
+}
+if (preg_match_all('/(\d{3,5})\s+(?:asserzioni|assertions)/i', $all, $am)) {
+    $claimed = (int)$am[1][1];
+    T::ok(
+        $claimed > $real && $claimed < $real * 4,
+        'every doc claims the same assertion count (' . $claimed . '); ' . $real . ' literal call sites across ' . $suites . ' suites expand to that many at runtime'
+    );
+}
+
+$indexSrc = (string)file_get_contents($root . '/public/index.php');
+$realRoutes = preg_match_all('/^\$router->(get|post|put|delete)\(/mi', $indexSrc);
+if (preg_match('/(\d{2,3}) route\b/i', $all, $rm)) {
+    T::eq($realRoutes, (int)$rm[1], 'the route count in the docs matches public/index.php');
+}
+$dbSrc = (string)file_get_contents($root . '/app/Core/Db.php');
+$realTables = preg_match_all('/CREATE TABLE/i', $dbSrc);
+$realDataTables = $realTables - preg_match_all('/CREATE TABLE IF NOT EXISTS schema_meta/i', $dbSrc);
+if (preg_match('/(\d{2}) tabelle\b/i', $all, $tm)) {
+    T::eq($realDataTables, (int)$tm[1], 'the data-table count in the docs matches app/Core/Db.php (schema_meta counted separately)');
+}
+
+// documented API endpoints must all exist
+preg_match_all('#^\s*`?(?:GET|POST|PUT|DELETE)\s+(/api/v1\S*?)`?#m', $docs['README.md'], $apiDoc);
+preg_match_all("#\\\$router->(?:get|post|put|delete)\('(/api/v1[^']+)'#", $indexSrc, $apiReal);
+$phantom = array_values(array_unique(array_filter(array_map(
+    static fn(string $p): string => rtrim(preg_replace('/[?`].*$/', '', $p), '/'),
+    $apiDoc[1]
+), static fn(string $p): bool => $p !== '' && $p !== '/api/v1' && !in_array($p, $apiReal[1], true))));
+T::eq([], $phantom, 'README documents no /api/v1 endpoint that does not exist');
+
+// method names cited in the docs must exist
+$cited = [];
+if (preg_match_all('/`([A-Z][A-Za-z]+)::([a-z][A-Za-z0-9_]*)\(\)`/', $all, $cm)) {
+    foreach ($cm[1] as $i => $cls) {
+        $fq = str_contains($cls, '\\') ? $cls : 'App\\' . (str_ends_with($cls, 'Service') || str_ends_with($cls, 'Controller') ? 'Services\\' . $cls : 'Core\\' . $cls);
+        foreach (['App\\Core\\' . $cls, 'App\\Services\\' . $cls, 'App\\Controllers\\' . $cls, 'App\\Models\\' . $cls, 'App\\Views\\' . $cls] as $cand) {
+            if (class_exists($cand)) { $fq = $cand; break; }
+        }
+        if (class_exists($fq) || interface_exists($fq)) {
+            $cited[$fq . '::' . $cm[2][$i]] = method_exists($fq, $cm[2][$i]);
+        }
+    }
+}
+foreach ($cited as $ref => $exists) {
+    T::ok($exists, 'the docs cite ' . $ref . '(), which exists');
+}
+T::ok(count($cited) >= 10, 'the method-existence check inspected the docs (' . count($cited) . ' references)');
+
+// the English and Italian contributing guides must not drift apart
+$it = (string)file_get_contents($root . '/CONTRIBUTING.md');
+$en = (string)file_get_contents($root . '/CONTRIBUTING.en.md');
+preg_match('/(\d{3,5})\s+asserzioni/i', $it, $i1);
+preg_match('/(\d{3,5})\s+assertions/i', $en, $i2);
+T::eq($i1[1] ?? '', $i2[1] ?? '', 'both contributing guides quote the same assertion count');
+foreach (['pdo_sqlite', 'gd', 'mbstring', 'curl', 'sodium', 'openssl', 'fileinfo', 'zip', 'intl'] as $ext) {
+    T::ok(str_contains($it, $ext), 'CONTRIBUTING.md lists the ' . $ext . ' extension');
+    T::ok(str_contains($en, $ext), 'CONTRIBUTING.en.md lists the ' . $ext . ' extension');
+}
+T::ok(!str_contains($it, 'sqlite3`'), 'CONTRIBUTING.md does not require sqlite3 (the code only uses PDO)');

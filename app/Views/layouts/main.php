@@ -34,7 +34,7 @@ foreach (['success','error','warning','info'] as $f) {
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/lib/browser.js"></script>
 <script src="<?= e(url('assets/js/app.js')) ?>" defer></script>
 <link rel="stylesheet" href="<?= e(url('assets/css/app.css')) ?>">
 </head>
@@ -94,6 +94,7 @@ window.PZ_LANG = <?= json_encode([
     'dup' => t('js.dup'),
     'success' => t('js.success'),
     'uploading' => t('js.uploading'),
+    'qr_unavailable' => t('js.qr_unavailable'),
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 window.PZ_T = window.PZ_LANG;
 if ('serviceWorker' in navigator) {

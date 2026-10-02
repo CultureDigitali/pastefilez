@@ -8,7 +8,7 @@ PasteFilez. Da leggere **prima** di toccare qualunque file.
 ## Comandi rapidi
 
 ```bash
-php tests/run.php                     # test suite (1178 asserzioni, 19 suite)
+php tests/run.php                     # test suite (1185 asserzioni, 19 suite)
 php bin/cli.php                       # help
 php bin/cli.php install               # installazione
 php bin/cli.php list-users            # utenti
@@ -29,8 +29,8 @@ pubblica su hosting condiviso.
 
 ## Convenzioni di codice
 
-- **PHP 8.1+**, no `<?=` shorthand, no `declare(strict_types=1)` in
-  produzione ma lo accettiamo nei service file nuovi.
+- **PHP 8.1+**, `<?=` ammesso nelle view. `declare(strict_types=1)` nei
+  service file nuovi.
 - **Zero commenti** nel codice PHP, JS, CSS, Swift. La documentazione
   narrativa vive in `docs/` o in `README.md`.
 - Namespace `App\Core`, `App\Controllers`, `App\Services`, `App\Models`.
@@ -90,11 +90,11 @@ Il master key è `storage/.key`, fuori dal DB.
   `/upload/clipboard`, `/upload/url`, `/api/v1/items`, `/api/v1/clipboard`.
   Non duplicare la logica MIME/quota/dedup/thumb.
 - **ApiThrottle**: rate limit su `/api/v1/*` con 5 tier (`read` 600/h,
-  `write` 120/h, `ai` 20/h, `auth` 120/h, `search` 120/h). **L'identità viene risolta solo da
+  `write` 120/h, `ai` 20/h, `auth` 30/h, `search` 120/h). **L'identità viene risolta solo da
   credenziali validate** (`ApiAuth::user(true)`); per un caller non autenticato
   si usa l'IP, mai un token grezzo fornito dal client (altrimenti ruotare
   l'header azzera il bucket). In più ogni utente validato consuma anche un
-  bucket per IP. Override con `RATE_LIMIT_API_{READ,WRITE,AI,AUTH}_PER_HOUR`
+  bucket per IP. Override con `RATE_LIMIT_API_{READ,WRITE,AI,AUTH,SEARCH}_PER_HOUR`
   (0 = default). Risponde 429 + `Retry-After`. Registrarlo con
   `$router->use(...)`. `ApiThrottle::prune()` (chiamato da `cli vacuum`) elimina
   le finestre vecchie.
@@ -147,7 +147,7 @@ sqlite3 storage/app.sqlite "SELECT id, original_name, mime, size, ai_status FROM
 - [x] CSRF token in form + verifica in `Csrf::validateRequest()`.
 - [x] Cookie `HttpOnly`, `Secure` (in HTTPS), `SameSite` Strict o Lax.
 - [x] Header security in `Bootstrap::securityHeaders()`.
-- [x] Argon2id via `Crypto::passwordHash()`.
+- [x] Argon2id via `Crypto::hash()` / `Crypto::verify()`.
 - [x] Lockout in `Auth::attempt()`: 5 errori, poi backoff esponenziale
       (60s, 120s, 240s, ... fino a 64 min).
 - [x] Rate limit su `/api/v1/*` via `ApiThrottle` (5 tier: read 600/h, write
@@ -176,7 +176,6 @@ sqlite3 storage/app.sqlite "SELECT id, original_name, mime, size, ai_status FROM
   attesa finché non c'è un upload o una visita a `/admin/jobs`.
 - Vision model output non è deterministico; per i tag si applica
   dedup case-insensitive e lunghezza 2-32.
-- Embedding limitato a 4096 dim (vincolo SQLite BLOB).
 - FTS5 tokenizer è unicode61 con `remove_diacritics=2`.
 - OAuth callback deve stare su HTTPS (Netsons Let's Encrypt OK).
 - La coda job è processata in modo opportunistico: durante il
@@ -189,23 +188,24 @@ sqlite3 storage/app.sqlite "SELECT id, original_name, mime, size, ai_status FROM
   `NvidiaClient`, `OllamaClient`; registrarlo in `AiProvider::factory()` e
   `AiProvider::defaultModel()`. Il `BASE_URLS` di `AiProvider` è la tabella dei
   default. Per Ollama, usa `ai.ollama_base` (loopback consentito, admin-gated).
-- **Cambiare un modello AI di default**: `app/Services/AiProvider.php`
-  + tabella `settings` (chiavi `ai_default_chat`, `ai_default_vision`,
-  `ai_default_embed`).
+- **Cambiare un modello AI di default**: chiavi `ai.model.chat`,
+  `ai.model.vision`, `ai.model.embedding` in `settings`
+  (`ai.default_provider` per il provider attivo).
 - **Aggiungere un endpoint API**: `app/Controllers/Api/` + route in
   `public/index.php` sotto il namespace `/api/v1/`.
 - **Aggiungere un provider AI**: estendere `BaseAiProvider`,
-  implementare `chat()`, `vision()`, `embeddings()`, `listModels()`,
+  implementare `chat()`, `vision()`, `embedding()`, `listModels()`,
   registrarlo in `AiProvider::factory()`. Per Ollama, usa `OllamaClient`
+  (base URL configurabile in `settings` tab AI, default `http://127.0.0.1:11434`). Per Ollama, usa `OllamaClient`
   (base URL configurabile in `settings` tab AI, default `http://127.0.0.1:11434`).
 - **Aggiungere un provider Cloud**: estendere `BaseCloudClient`,
   implementare `authorizeUrl()`, `exchangeCode()`, `upload()`,
   registrarlo in `StorageService::factory()`.
 - **Aggiungere una lingua**: copiare `lang/it.json` in `lang/<ll>.json`,
   tradurre, aggiungere il toggle in `SettingsController::preferences()`.
-- **Aggiungere un tipo di file supportato**: aggiornare
-  `UploadController::store()` (MIME allowlist) e, se serve thumb,
-  `ThumbnailService::make()`.
+- **Aggiungere un tipo di file supportato**: aggiornare `ALLOWED_MIME` in
+  `.env` / `Config` e `UploadGuard::isActiveContent()`, e se serve thumb
+  `ThumbnailService::loadImage()`.
 - **Modificare l'editor immagini**: `app/Views/items/edit.php` (JS canvas),
   `ItemController::edit/editSave`. Tool: text, arrow, line, rect, underline,
   freehand. Salva come nuovo PNG via `canvas.toDataURL()`.
@@ -226,7 +226,7 @@ curl -c /tmp/c.txt -b /tmp/c.txt http://127.0.0.1:8000/login
 curl -b /tmp/c.txt -F "_csrf=..." -F "file=@/etc/hosts" http://127.0.0.1:8000/upload
 
 # 3. Search
-curl -b /tmp/c.txt "http://127.0.0.1:8000/search?q=...&hybrid=1"
+curl -b /tmp/c.txt "http://127.0.0.1:8000/search?q=..."
 
 # 4. Share con password
 curl -b /tmp/c.txt -F "_csrf=..." -F "item_id=1" -F "password=foo" http://127.0.0.1:8000/items/1/share

@@ -19,7 +19,7 @@ fornitore"* trova quello, non gli altri trecento PDF.
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-success.svg)
-![Tests](https://img.shields.io/badge/tests-1178%20passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-1185%20passing-brightgreen.svg)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-blue.svg)
 
 > [!NOTE]
@@ -79,10 +79,9 @@ dependencies and the ways to break it are documented there.
 
 ## Stack
 
-- PHP 8.1+ con estensioni: `pdo_sqlite`, `sqlite3`, `gd`, `mbstring`,
-  `curl`, `sodium`, `openssl`, `fileinfo`, `intl` (consigliato),
-  `zip` (per i backup).
-- SQLite 3.34+ (richiesto FTS5; PHP 8.x lo include già).
+- PHP 8.1+ con estensioni: `pdo_sqlite`, `gd`, `mbstring`, `curl`,
+  `sodium`, `openssl`, `fileinfo`, `zip`, `intl`. Verificato in CI su PHP 8.3.
+- SQLite con FTS5 compilato (≥ 3.7.7). Verifica con `SELECT fts5_version();`
 - Zero dipendenze Composer in produzione.
 - Frontend: Tailwind + Alpine.js + HTMX via jsDelivr; QRCode.js via
   jsDelivr. Nessun bundler.
@@ -132,9 +131,9 @@ PHP 8.1+, estensioni sopra, e `sqlite3` CLI opzionale per ispezione.
    - `APP_NAME=PasteFilez`
    - Tutto il resto rimane su default.
 5. **Apri `https://paste.example.com/install`** e segui il wizard.
-6. **Elimina l'accesso a `/install`** rimuovendo l'utente pubblico di quella
-   rotta o, più semplicemente, ruotando la password admin e cambiando il
-   `MASTER_KEY_PATH` se si vuole.
+6. **Non devi fare nulla**: con `storage/.key` presente `/install` non è più
+   raggiungibile e redirige a `/login`. Non cambiare `MASTER_KEY_PATH`:
+   rende illeggibili chiavi e token cloud.
 
 ### Docker
 
@@ -189,7 +188,7 @@ occupata, scegline un'altra e aggiornala anche in `APP_URL`.
 
 ## CLI
 
-Tutti i comandi accettano `--help`. Esegui `php bin/cli.php` per la lista.
+Esegui `php bin/cli.php` per l'elenco:
 
 ```bash
 php bin/cli.php install                       # installazione interattiva
@@ -253,9 +252,9 @@ key prima di essere scritta in `storage/keys/`.
 
 1. Crea un'app su <https://www.dropbox.com/developers/apps> con scope
    `files.content.write` e `files.content.read`.
-2. Aggiungi `https://paste.example.com/settings/cloud/google/callback` come
+2. Aggiungi `https://paste.example.com/settings/cloud/dropbox/callback` come
    redirect URI.
-3. PKCE: la app genera il `code_verifier` in locale; non serve secret.
+3. PKCE: la app genera il `code_verifier` in locale.
 
 I refresh token sono cifrati con la master key in `storage/keys/`.
 
@@ -282,8 +281,9 @@ defaults write com.pastefilez.clipboard server https://paste.example.com
 defaults write com.pastefilez.clipboard api_token <API_TOKEN>
 ```
 
-Il token API si genera in **Settings → API** (accessibile solo se si è
-admin). L'utente deve avere i permessi `clipboard:write`.
+Il token API si genera in **Settings → API** da qualsiasi utente
+autenticato e vale 30 giorni. Non esistono permessi dedicati: l'accesso ai
+dati è per-owner (`user_id`).
 
 ### Auto-start al login
 
@@ -305,7 +305,8 @@ pastefilez/
 │   ├── Controllers/    # Auth, Upload, Item, Search, Share, Settings, Admin, Api/*
 │   ├── Models/         # Setting, Item
 │   ├── Services/       # AiProvider, StorageService, ShareService, ...
-│   └── Views/          # layouts/, auth/, items/, share/, settings/, admin/, errors/
+│   └── Views/          # layouts/, auth/, items/, share/, settings/, admin/,
+                        #   chat/, dashboard/, install/, upload/, errors/
 ├── bin/
 │   ├── cli.php         # CLI
 │   └── mac-clipboard-monitor/  # companion macOS
@@ -322,7 +323,6 @@ pastefilez/
 │   ├── files/          # blob cifrati o in chiaro
 │   ├── thumbs/
 │   ├── keys/           # chiavi provider cifrate
-│   ├── jobs.sqlite     # coda job (parte di app.sqlite in realtà)
 │   └── logs/
 └── docs/
 ```
@@ -337,11 +337,11 @@ L'unica eccezione è `auth/login`.
 ```
 POST   /api/v1/auth/login     {email, password} -> {access_token, refresh_token, expires_in}
 POST   /api/v1/auth/refresh   {refresh_token}   -> {access_token, refresh_token, expires_in}
-GET    /api/v1/items?folder=&type=&q=&page=
+GET    /api/v1/items                     (max 100, nessun filtro)
 POST   /api/v1/items          multipart: file
 GET    /api/v1/items/{id}
 DELETE /api/v1/items/{id}
-GET    /api/v1/search?q=&hybrid=true
+GET    /api/v1/search?q=
 POST   /api/v1/clipboard      multipart: file
 GET    /api/v1/models
 POST   /api/v1/ai/analyze     {item_id, force}
@@ -359,8 +359,8 @@ curl -X POST http://localhost:8000/api/v1/auth/login \
 # -> {"access_token":"eyJ...","refresh_token":"...","expires_in":900}
 ```
 
-Ogni token validato consuma un bucket di rate limit (600/h letture,
-120/h scritture, 20/h AI, 120/h auth). Il client macOS e gli script possono
+Ogni token validato consuma un bucket di rate limit: 600/h letture,
+120/h scritture, 20/h AI, 30/h auth, 120/h ricerche. Il client macOS e gli script possono
 passare `?api_token=<token>` al posto dell'header Bearer.
 
 ---
@@ -393,13 +393,13 @@ Per ripristinare:
 - [x] `X-Frame-Options: DENY`.
 - [x] `X-Content-Type-Options: nosniff`.
 - [x] `Referrer-Policy: no-referrer`.
-- [x] Argon2id (memory=64MB, time=4, threads=2).
-- [x] Lockout dopo 5 tentativi in 15 min.
+- [x] Argon2id (memory=64MB, time=4, threads=1).
+- [x] Lockout dopo 5 fallimenti, backoff esponenziale 60s → 64 min.
 - [x] Rate limit su login + API.
 - [x] Audit log: login, share create, settings change, admin action.
 - [x] Master key 32B random, cifratura AES-256-GCM.
 - [x] File opzionalmente cifrati at rest.
-- [x] `display_errors=Off` in `.env.example`.
+- [x] `display_errors` forzato a `0` in `Bootstrap.php` e `public/index.php`.
 - [x] `.env`, `storage/`, `*.sqlite` protetti da `.htaccess`.
 - [x] Nessun commento nel codice (sistema operativo).
 - [x] PHP senza build step.

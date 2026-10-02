@@ -36,7 +36,7 @@ final class ApiKeyController extends Controller
         $label = trim(Request::inputString('label'));
         $key = trim(Request::inputString('key'));
         if (!in_array($provider, ['openrouter', 'nvidia', 'groq', 'ollama'], true)) Response::json(['ok' => false, 'error' => 'bad_provider']);
-        if ($key === '') Response::json(['ok' => false, 'error' => 'empty_key']);
+        if ($key === '' && $provider !== 'ollama') Response::json(['ok' => false, 'error' => 'empty_key']);
         $enc = Crypto::encryptToBase64($key);
         $now = time();
         $exists = Db::first('SELECT id FROM api_keys WHERE user_id = ? AND provider = ?', [$user['id'], $provider]);

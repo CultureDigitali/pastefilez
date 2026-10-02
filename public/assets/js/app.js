@@ -139,10 +139,26 @@
   PZ.esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); };
 
   PZ.qr = function (el, text) {
-    if (window.QRCode) {
-      try { new QRCode(el, { text: text, width: 220, height: 220, colorDark: '#000', colorLight: '#fff' }); return; } catch (e) {}
-    }
-    el.innerHTML = '<img alt="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(text) + '">';
+    if (!el) return;
+    var draw = function () {
+      if (!window.QRCode) return false;
+      try { new window.QRCode(el, { text: text, width: 220, height: 220, colorDark: '#000', colorLight: '#fff' }); return true; } catch (e) { return false; }
+    };
+    if (draw()) return;
+    // app.js is deferred, so an inline caller may run first: retry briefly.
+    var tries = 0;
+    var iv = setInterval(function () {
+      if (draw() || ++tries > 40) {
+        clearInterval(iv);
+        // No third-party fallback: for a TOTP enrolment that would leak the secret.
+        if (tries > 40) el.textContent = (PZ.lang && PZ.lang.qr_unavailable) || 'QR unavailable — use the secret below.';
+      }
+    }, 50);
+  };
+
+  PZ.renderQrPlaceholders = function (root) {
+    var nodes = (root || document).querySelectorAll('[data-qr]');
+    for (var i = 0; i < nodes.length; i++) PZ.qr(nodes[i], nodes[i].getAttribute('data-qr'));
   };
 
   PZ.lang = window.PZ_LANG || {};
@@ -152,3 +168,9 @@
     return s;
   };
 })();
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function () { PZ.renderQrPlaceholders(); });
+} else {
+  PZ.renderQrPlaceholders();
+}

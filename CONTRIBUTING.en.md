@@ -14,7 +14,7 @@ pdo_sqlite  gd  mbstring  curl  sodium  openssl  fileinfo  zip  intl
 ```bash
 cp .env.example .env
 php bin/cli.php install
-php tests/run.php          # 1178 assertions, must stay green
+php tests/run.php          # 1185 assertions, must stay green
 php -S 127.0.0.1:8000 -t public
 ```
 

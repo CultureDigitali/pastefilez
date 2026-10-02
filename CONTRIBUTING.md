@@ -4,11 +4,11 @@ Grazie per il tempo. Le PR sono benvenute.
 
 ## Ambienti
 
-Non serve Composer. Basta PHP 8.1+ con `pdo_sqlite`, `sqlite3`, `gd`,
-`mbstring`, `curl`, `sodium`, `openssl`, `fileinfo`, `intl`.
+Non serve Composer. Basta PHP 8.1+ con `pdo_sqlite`, `gd`, `mbstring`,
+`curl`, `sodium`, `openssl`, `fileinfo`, `zip`, `intl`.
 
 ```bash
-php tests/run.php                 # 1143 asserzioni, deve restare verde
+php tests/run.php                 # 1185 asserzioni, deve restare verde
 php bin/cli.php install
 php -S 127.0.0.1:8000 -t public
 ```
