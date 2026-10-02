@@ -79,11 +79,19 @@ final class AiTestController extends Controller
     {
         $user = Auth::require();
         $provider = Request::inputString('provider');
+        if ($provider !== '') Setting::set($user['id'], 'ai.default_provider', $provider);
         $purpose = Request::inputString('purpose');
-        $model = Request::inputString('model');
-        if (!in_array($purpose, ['chat', 'vision', 'embedding'], true)) Response::json(['ok' => false], 400);
-        if ($provider) Setting::set($user['id'], 'ai.default_provider', $provider);
-        Setting::set($user['id'], 'ai.model.' . $purpose, $model);
+        if ($purpose !== '' && !in_array($purpose, ['chat', 'vision', 'embedding'], true)) {
+            Session::set('flash_error', 'invalid_role');
+            Response::redirect('/settings/ai');
+        }
+        if ($purpose !== '') {
+            Setting::set($user['id'], 'ai.model.' . $purpose, Request::inputString('model'));
+        }
+        foreach (['chat' => 'model_chat', 'vision' => 'model_vision', 'embedding' => 'model_embedding'] as $scope => $field) {
+            $model = trim(Request::inputString($field));
+            if ($model !== '') Setting::set($user['id'], 'ai.model.' . $scope, $model);
+        }
         Session::set('flash_success', t('common.save'));
         Response::redirect('/settings/ai');
     }

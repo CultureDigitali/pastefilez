@@ -15,7 +15,10 @@ final class View
     public static function render(string $template, array $data = []): string
     {
         $path = dirname(__DIR__) . '/Views/' . $template . '.php';
-        if (!is_file($path)) return '<!-- view missing: ' . htmlspecialchars($template) . ' -->';
+        if (!is_file($path)) {
+            \App\Core\Logger::error('view.missing', ['template' => $template]);
+            throw new \RuntimeException('view not found: ' . $template);
+        }
         $data = array_merge(self::$shared, $data);
         $data['__view'] = $template;
         extract($data, EXTR_SKIP);

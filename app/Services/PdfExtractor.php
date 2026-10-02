@@ -5,38 +5,61 @@ namespace App\Services;
 
 final class PdfExtractor
 {
+    public const MAX_BYTES = 20971520;
+    public const MAX_TEXT = 32000;
+
     public static function extractText(string $absPath): string
     {
-        if (!is_file($absPath) || filesize($absPath) === 0) return '';
-        $raw = file_get_contents($absPath);
-        if ($raw === false) return '';
-        if (strpos($raw, '%PDF-') !== 0) return '';
+        if (!is_file($absPath)) return '';
+        $size = (int)filesize($absPath);
+        if ($size === 0) return '';
+        if ($size > self::MAX_BYTES) return '';
+        $raw = @file_get_contents($absPath);
+        if ($raw === false || !str_starts_with($raw, '%PDF-')) return '';
         $out = [];
         $meta = self::extractMeta($raw);
-        if (!empty($meta)) $out[] = $meta;
-        if (preg_match_all('/BT\b(.*?)ET\b/s', $raw, $matches)) {
-            foreach ($matches[1] as $block) {
+        if ($meta !== '') $out[] = $meta;
+        foreach (self::contentStreams($raw) as $stream) {
+            foreach (self::textBlocks($stream) as $block) {
                 $t = self::extractFromBlock($block);
-                if ($t !== '') $out[] = $t;
+                if (self::isReadable($t)) $out[] = $t;
             }
         }
-        if (empty($out)) {
-            $words = [];
-            $ascii = preg_match_all('/[A-Za-z]{3,}/', $raw, $wm);
-            if ($ascii === false || !is_array($wm) || empty($wm[0])) {
-                $wm = [[]];
-                preg_match_all('/[\x80-\xFF]{3,}/', $raw, $wm);
+        if (!empty($out)) return mb_substr(trim(implode("\n\n", $out)), 0, self::MAX_TEXT);
+        return '';
+    }
+
+    private static function contentStreams(string $raw): array
+    {
+        $streams = [];
+        if (preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $raw, $m)) {
+            foreach ($m[1] as $blob) {
+                $decoded = @gzuncompress($blob);
+                if ($decoded === false || $decoded === '') $decoded = @gzinflate($blob);
+                if ($decoded === false || $decoded === '') $decoded = $blob;
+                $streams[] = $decoded;
+                if (count($streams) >= 400) break;
             }
-            if (is_array($wm) && !empty($wm[0])) {
-                foreach ($wm[0] as $w) {
-                    if (self::isStructuralToken($w)) continue;
-                    $words[] = $w;
-                    if (count($words) >= 500) break;
-                }
-            }
-            if (!empty($words)) $out[] = implode(' ', $words);
         }
-        return mb_substr(trim(implode("\n\n", $out)), 0, 32000);
+        $streams[] = $raw;
+        return $streams;
+    }
+
+    private static function textBlocks(string $stream): array
+    {
+        if (!preg_match_all('/BT\b(.*?)\bET/s', $stream, $m)) return [];
+        return $m[1];
+    }
+
+    private static function isReadable(string $text): bool
+    {
+        $text = trim($text);
+        if ($text === '' || mb_strlen($text) < 3) return false;
+        if (preg_match('/^[\p{L}\p{N}\s.,;:!?"\'()\-%\/@#&+*]{3,}$/u', $text) !== 1) return false;
+        if (preg_match('/[\p{L}]/u', $text) !== 1) return false;
+        if (self::isStructuralToken($text)) return false;
+        $printable = preg_match_all('/[\p{L}\p{N}\s.,;:!?"\'()\-%\/@#&+*]/u', $text);
+        return $printable > 0 && ($printable / max(1, mb_strlen($text))) >= 0.8;
     }
 
     private static function extractFromBlock(string $block): string

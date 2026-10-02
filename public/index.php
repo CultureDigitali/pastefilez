@@ -5,7 +5,6 @@ ini_set('display_errors', '0');
 ini_set('display_startup_errors', '0');
 ini_set('log_errors', '1');
 ini_set('html_errors', '0');
-
 require __DIR__ . '/../app/Core/autoload.php';
 
 ob_start(static function (string $buffer): string {
@@ -20,6 +19,7 @@ ob_start(static function (string $buffer): string {
 });
 
 use App\Core\Bootstrap;
+use App\Core\Config;
 use App\Core\Csrf;
 use App\Core\Installer;
 use App\Core\Router;
@@ -49,6 +49,14 @@ use App\Controllers\Api\SearchApiController;
 use App\Controllers\Api\AiApiController;
 
 Bootstrap::init();
+
+$_pzLimit = (int)Config::get('max_execution_time', 300);
+if ($_pzLimit > 0) {
+    @ini_set('max_execution_time', (string)$_pzLimit);
+    @set_time_limit($_pzLimit);
+} else {
+    @set_time_limit(0);
+}
 
 if (!Installer::isInstalled() && !str_starts_with(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '', '/install')) {
     header('Location: ' . url('install'));
@@ -127,6 +135,7 @@ $router->post('/chat/ask', [ChatController::class, 'ask']);
 $router->get('/settings', [SettingsController::class, 'index']);
 $router->post('/settings/profile', [SettingsController::class, 'profile']);
 $router->post('/settings/password', [SettingsController::class, 'password']);
+$router->get('/settings/totp', [SettingsController::class, 'totpSetup']);
 $router->post('/settings/totp', [SettingsController::class, 'totpEnable']);
 $router->post('/settings/totp/disable', [SettingsController::class, 'totpDisable']);
 $router->post('/settings/preferences', [SettingsController::class, 'preferences']);

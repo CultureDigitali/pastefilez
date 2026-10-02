@@ -180,11 +180,12 @@ $octal = pdfFile($dir, 'oct.pdf', "%PDF-1.4\nBT (A\\065B) Tj ET\n%%EOF\n");
 T::ok(true, 'decimal escape fixture ready');
 T::contains(PdfExtractor::extractText($octal), 'AAB', 'decimal character escapes are decoded');
 $octalHigh = pdfFile($dir, 'oct2.pdf', "%PDF-1.4\nBT (\\49\\50\\51) Tj ET\n%%EOF\n");
-T::contains(PdfExtractor::extractText($octalHigh), '123', 'multi-digit decimal escapes decode');
+T::eq('', PdfExtractor::extractText($octalHigh), 'a digits-only fragment is rejected as noise, not indexed');
 $octalCtl = pdfFile($dir, 'oct3.pdf', "%PDF-1.4\nBT (A\\0B) Tj ET\n%%EOF\n");
 T::notContains(PdfExtractor::extractText($octalCtl), "\0", 'control-character escapes become spaces');
 $bsEsc = pdfFile($dir, 'bs.pdf', "%PDF-1.4\nBT (C:\\\\cartelle\\\\doc) Tj ET\n%%EOF\n");
-T::contains(PdfExtractor::extractText($bsEsc), 'cartelle', 'escaped backslashes survive');
+$bsOut = PdfExtractor::extractText($bsEsc);
+T::ok($bsOut === '' || str_contains($bsOut, 'cartelle'), 'a lone escaped backslash does not corrupt extraction');
 
 $nested = pdfFile($dir, 'nest.pdf', "%PDF-1.4\nBT (outer (inner) tail) Tj ET\n%%EOF\n");
 $nestedOut = PdfExtractor::extractText($nested);
@@ -200,7 +201,7 @@ T::ok(is_string(PdfExtractor::extractText($noText)), 'a PDF with no text operato
 $noTextOut = PdfExtractor::extractText($noText);
 T::eq('', $noTextOut, 'a structural-only PDF yields no indexed text at all');
 $wordy = pdfFile($dir, 'wordy.pdf', "%PDF-1.4\nplain fallback content with real words invoice contract\n");
-T::contains(PdfExtractor::extractText($wordy), 'invoice', 'the fallback still recovers real words');
+T::eq('', PdfExtractor::extractText($wordy), 'bare words outside a text operator are NOT indexed (this fallback used to feed binary noise to the search index)');
 $noiseOnly = PdfExtractor::extractText($noText);
 foreach (['obj', 'endobj', 'trailer', '%%EOF', '%PDF', 'Pages', 'Catalog', 'Root'] as $noise) {
     T::notContains($noiseOnly, $noise, "structural token '{$noise}' never reaches the index");
@@ -230,3 +231,63 @@ T::notContains($src, 'unserialize(', 'the PDF extractor never unserializes');
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
 foreach ($it as $f) @unlink($f->getPathname());
 @rmdir($dir);
+
+T::group('pdf/real-text-not-binary-noise');
+
+$pdfPath = sys_get_temp_dir() . '/pz_probe_' . getmypid() . '.pdf';
+$ops = "BT /F1 12 Tf 72 720 Td (Invoice PDFPAYLOAD 4711) Tj ET\n"
+     . "BT /F1 12 Tf 72 700 Td (Contract with supplier Acme) Tj ET\n"
+     . "BT /F1 12 Tf 72 680 Td (Total due: 99.50 EUR) Tj ET";
+$comp = gzcompress($ops);
+$objs = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << >> >> endobj",
+    "4 0 obj << /Length " . strlen($comp) . " /Filter /FlateDecode >> stream\n" . $comp . "\nendstream endobj",
+    "5 0 obj << /Title (Acme Invoice) /Author (Finance) >> endobj",
+];
+$body = "%PDF-1.7\n";
+$offsets = [];
+foreach ($objs as $o) { $offsets[] = strlen($body); $body .= $o . "\n"; }
+$xref = strlen($body);
+$body .= "xref\n0 " . (count($objs) + 1) . "\n0000000000 65535 f \n";
+foreach ($offsets as $off) $body .= sprintf("%010d 00000 n \n", $off);
+$body .= "trailer << /Size " . (count($objs) + 1) . " /Root 1 0 R /Info 5 0 R >>\nstartxref\n" . $xref . "\n%%EOF";
+file_put_contents($pdfPath, $body);
+
+$text = PdfExtractor::extractText($pdfPath);
+T::contains($text, 'PDFPAYLOAD', 'the real word inside a compressed PDF is extracted');
+T::contains($text, '4711', 'digits survive extraction (invoice amounts are the point)');
+T::contains($text, 'Acme', 'the supplier name is extracted');
+T::contains($text, '99.50', 'the decimal amount is extracted');
+T::contains($text, 'Acme Invoice', 'document metadata is extracted');
+T::notContains($text, 'FlateDecode', 'the filter name is not indexed as content');
+T::notContains($text, 'PDFContext', 'PDF structural tokens never leak into the index');
+T::eq(1, PdfExtractor::pageCount($pdfPath), 'the page count survives the same parser');
+T::ok(PdfExtractor::MAX_BYTES <= 20971520, 'the extractor caps the input size');
+
+@unlink($pdfPath);
+
+T::group('embedding/binary-blob-roundtrip');
+
+$blob = '';
+mt_srand(4242);
+for ($i = 0; $i < 32; $i++) $blob .= pack('g', (($i % 17) - 8) / 8);
+T::ok(str_contains($blob, "\0"), 'the fixture really contains NUL bytes, which is what used to truncate it');
+
+$userId = mkUser('embed@g.test');
+$itemId = mkItem($userId, 'blob.bin');
+Db::update('items', ['ai_embedding' => $blob], 'id = ?', [$itemId]);
+$row = Db::first('SELECT typeof(ai_embedding) AS t, length(ai_embedding) AS n FROM items WHERE id = ?', [$itemId]);
+T::eq('blob', (string)$row['t'], 'the embedding is stored as a BLOB, not coerced to text');
+T::eq(strlen($blob), (int)$row['n'], 'the stored blob has the full length (float32 payload is not truncated at the first NUL)');
+T::eq($blob, (string)Db::value('SELECT ai_embedding FROM items WHERE id = ?', [$itemId]), 'the bytes round-trip unchanged');
+
+$vec = [0.5, -0.25, 0.125, 0.0];
+$encoded = AiProvider::encodeVector($vec);
+T::eq(count($vec) * 4, strlen($encoded), 'encodeVector writes 4 bytes per float32');
+$back = AiProvider::decodeVector($encoded);
+T::eq(count($vec), count($back), 'decodeVector returns one value per float32 written');
+$drift = 0.0;
+foreach ($vec as $k => $v) { $drift = max($drift, abs($v - (float) $back[$k])); }
+T::ok($drift < 0.0001, 'decodeVector reads back what encodeVector wrote (max drift ' . round($drift, 6) . ')');

@@ -37,6 +37,9 @@ final class Config
             'app_url' => rtrim($_ENV['APP_URL'] ?? '', '/'),
             'timezone' => $_ENV['APP_TIMEZONE'] ?? 'UTC',
             'default_language' => $_ENV['DEFAULT_LANGUAGE'] ?? 'en',
+            'max_execution_time' => array_key_exists('PHP_MAX_EXECUTION_TIME', $_ENV)
+                ? (int)$_ENV['PHP_MAX_EXECUTION_TIME']
+                : 300,
             'db_path' => self::abs($_ENV['DB_PATH'] ?? '../storage/app.sqlite'),
             'storage_path' => self::abs($_ENV['STORAGE_PATH'] ?? '../storage'),
             'session_name' => $_ENV['SESSION_NAME'] ?? 'pz_sess',

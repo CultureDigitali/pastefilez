@@ -48,6 +48,7 @@ foreach (['files', 'thumbs', 'e2e', 'logs', 'cache'] as $d) {
 $envFile = is_file($root . '/.env') ? $root . '/.env' : $root . '/.env.example';
 $env = (string)file_get_contents($envFile);
 $env = preg_replace('/^ENCRYPT_FILES_AT_REST=.*$/m', 'ENCRYPT_FILES_AT_REST=false', $env) ?? $env;
+$env = preg_replace('/^APP_DEBUG=.*$/m', 'APP_DEBUG=false', $env) ?? $env;
 $env = preg_replace('/^DB_PATH=.*$/m', 'DB_PATH=' . $sandbox . '/storage/app.sqlite', $env) ?? $env;
 $env = preg_replace('/^STORAGE_PATH=.*$/m', 'STORAGE_PATH=' . $sandbox . '/storage', $env) ?? $env;
 $env = preg_replace('/^MASTER_KEY_PATH=.*$/m', 'MASTER_KEY_PATH=' . $sandbox . '/storage/.key', $env) ?? $env;

@@ -46,7 +46,7 @@ final class Db
     public static function run(string $sql, array $params = []): PDOStatement
     {
         $stmt = self::pdo()->prepare($sql);
-        $stmt->execute($params);
+        self::executeBound($stmt, is_array($params) ? $params : []);
         return $stmt;
     }
 
@@ -65,6 +65,16 @@ final class Db
     {
         $r = self::run($sql, $params)->fetchColumn();
         return $r === false ? null : $r;
+    }
+
+    private static function executeBound(\PDOStatement $stmt, array $bind): void
+    {
+        foreach ($bind as $k => $v) {
+            $param = is_int($k) ? $k + 1 : $k;
+            $binary = is_string($v) && (str_contains($v, "\0") || preg_match('//u', $v) !== 1);
+            $stmt->bindValue($param, $v, ($binary || is_resource($v)) ? \PDO::PARAM_LOB : \PDO::PARAM_STR);
+        }
+        $stmt->execute();
     }
 
     public static function insert(string $table, array $data): int
@@ -96,7 +106,7 @@ final class Db
         }
         $sql = 'UPDATE ' . self::ident($table) . ' SET ' . implode(', ', $set) . ' WHERE ' . $newWhere;
         $stmt = self::pdo()->prepare($sql);
-        $stmt->execute($bind);
+        self::executeBound($stmt, $bind);
         return $stmt->rowCount();
     }
 
@@ -112,7 +122,7 @@ final class Db
             $bind[$key] = $v;
         }
         $stmt = self::pdo()->prepare('DELETE FROM ' . self::ident($table) . ' WHERE ' . $newWhere);
-        $stmt->execute($bind);
+        self::executeBound($stmt, $bind);
         return $stmt->rowCount();
     }
 

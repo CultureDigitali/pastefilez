@@ -8,7 +8,7 @@ $csrf = $csrf_token ?? '';
 $flashes = [];
 foreach (['success','error','warning','info'] as $f) {
     $m = \App\Core\Session::flash($f);
-    if ($m) $flashes[$f] = $m;
+    if ($m) $flashes[$f] = \App\Core\I18n::t($m);
 }
 ?><!doctype html>
 <html lang="<?= e($lang) ?>" data-theme="<?= e($theme) ?>">

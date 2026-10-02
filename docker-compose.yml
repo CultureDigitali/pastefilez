@@ -1,6 +1,7 @@
 services:
   pastefilez:
     build: .
+    image: pastefilez:latest
     container_name: pastefilez
     restart: unless-stopped
     ports:
@@ -13,6 +14,9 @@ services:
       DEFAULT_LANGUAGE: en
       APP_TIMEZONE: Europe/Rome
       COOKIE_SECURE: "false"
+      DB_PATH: storage/app.sqlite
+      STORAGE_PATH: storage
+      MASTER_KEY_PATH: storage/.key
       ENCRYPT_FILES_AT_REST: "false"
       MAX_UPLOAD_MB: "100"
       QUOTA_PER_USER_MB: "10240"
@@ -20,7 +24,8 @@ services:
     volumes:
       - ./storage:/app/storage
     healthcheck:
-      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8080) ? 0 : 1);"]
+      test: ["CMD", "php", "-r", "$f=@fsockopen('127.0.0.1',8080,$e,$s,3);if(!$f){exit(1);}fwrite($f,\"GET /login HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\");$r=stream_get_contents($f);fclose($f);exit(strpos($r,'HTTP/')===0?0:1);"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s

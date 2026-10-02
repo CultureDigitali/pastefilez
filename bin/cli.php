@@ -170,8 +170,10 @@ switch ($cmd) {
             if (str_contains($local, '/logs/') || str_contains($local, '/tmp/')) continue;
             $zip->addFile($f->getPathname(), $local);
         }
+        $envPath = $base . '/.env';
+        if (is_file($envPath)) $zip->addFile($envPath, '.env');
         $zip->close();
-        cli_out("Backup creato: $dest");
+        cli_out("Backup creato: $dest (include .env e storage/.key: trattalo come un segreto)");
         break;
 
     case 'process-jobs':

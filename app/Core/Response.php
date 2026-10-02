@@ -30,9 +30,12 @@ final class Response
 
     public static function redirect(string $path, int $status = 302): void
     {
+        $target = preg_match('#^[a-z][a-z0-9+.-]*://#i', $path) === 1
+            ? $path
+            : url(ltrim($path, '/'));
         if (!headers_sent()) {
             http_response_code($status);
-            header('Location: ' . url(ltrim($path, '/')));
+            header('Location: ' . $target);
         }
         exit;
     }

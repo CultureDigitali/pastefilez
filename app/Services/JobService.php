@@ -39,7 +39,8 @@ final class JobService
             } catch (\Throwable $e) {
                 Logger::error('job.fail', ['id' => $r['id'], 'type' => $r['type'], 'err' => $e->getMessage()]);
                 $attempts = (int)$r['attempts'];
-                $status = $attempts >= 4 ? 'failed' : 'pending';
+                $fatal = str_starts_with($e->getMessage(), 'unknown job type:');
+                $status = $fatal || $attempts >= 4 ? 'failed' : 'pending';
                 $delay = (int)pow(2, $attempts) * 30;
                 Db::update('jobs', [
                     'status' => $status,
@@ -58,6 +59,9 @@ final class JobService
 
     public static function run(string $type, int $userId, array $payload, int $jobId): void
     {
+        if (!in_array($type, ['analyze', 'embedding', 'webhook'], true)) {
+            throw new \RuntimeException('unknown job type: ' . $type);
+        }
         switch ($type) {
             case 'analyze':
                 (new \App\Services\AnalysisService())->run($userId, (int)$payload['item_id']);

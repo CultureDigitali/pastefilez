@@ -21,6 +21,10 @@ putenv('MASTER_KEY_PATH=' . $tmp . '/.key');
 $_ENV['DB_PATH'] = $tmp . '/test.sqlite';
 $_ENV['STORAGE_PATH'] = $tmp;
 $_ENV['MASTER_KEY_PATH'] = $tmp . '/.key';
+foreach (['APP_DEBUG' => 'false', 'APP_ENV' => 'test', 'ENCRYPT_FILES_AT_REST' => 'false'] as $k => $v) {
+    putenv($k . '=' . $v);
+    $_ENV[$k] = $v;
+}
 
 $guard = static function (string $resolved, string $label) use ($root, $tmp): void {
     $real = realpath(dirname($resolved));

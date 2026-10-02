@@ -55,6 +55,7 @@ final class OllamaClient extends BaseAiProvider
         ];
         if (isset($opts['temperature'])) $body['options']['temperature'] = $opts['temperature'];
         if (!empty($opts['max_tokens'])) $body['options']['num_predict'] = (int)$opts['max_tokens'];
+        $body['options'] = $body['options'] === [] ? new \stdClass() : $body['options'];
         $r = $this->http('POST', '/api/chat', [], $body);
         if (!$r['ok']) {
             $msg = $r['data']['error'] ?? ('HTTP ' . $r['status']);
@@ -81,6 +82,7 @@ final class OllamaClient extends BaseAiProvider
             'options' => [],
         ];
         if (!empty($opts['max_tokens'])) $body['options']['num_predict'] = (int)$opts['max_tokens'];
+        $body['options'] = $body['options'] === [] ? new \stdClass() : $body['options'];
         $r = $this->http('POST', '/api/chat', [], $body);
         if (!$r['ok']) {
             $msg = $r['data']['error'] ?? ('HTTP ' . $r['status']);

@@ -13,19 +13,23 @@ fornitore"* trova quello, non gli altri trecento PDF.
   Node, niente Composer. FTP e basta.
 - 🔐 **Il server può non poter leggere** — E2E con AES-GCM nel browser, opzionale.
 - 🧠 **AI locale** — Ollama supportato: analisi e ricerca senza mandare nulla fuori.
-- 📦 **Zero dipendenze** — 99 route, 4 script CDN, `php -l` e via.
+- 📦 **Zero dipendenze** — 101 route, 4 script CDN, `php -l` e via.
 - 🗑️ **Cestino, bulk, webhooks, PWA, editor immagini** — tutto incluso.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-success.svg)
-![Tests](https://img.shields.io/badge/tests-1143%20passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-1178%20passing-brightgreen.svg)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-blue.svg)
 
 > [!NOTE]
 > Pensata per hosting shared (Netsons, OVH Shared, SiteGround, Aruba Free) e
 > deployment via FTP: nessun build step, niente Node, niente Composer in
 > produzione, tutte le librerie JS via jsDelivr.
+
+**Contributing?** Read [`CONTRIBUTING.en.md`](CONTRIBUTING.en.md) (English) or
+[`CONTRIBUTING.md`](CONTRIBUTING.md) (Italian). Architecture, shared
+dependencies and the ways to break it are documented there.
 
 ---
 
@@ -53,7 +57,8 @@ fornitore"* trova quello, non gli altri trecento PDF.
 - **Companion macOS** in status bar che inoltra la clipboard globale.
 - **Multilingua** IT/EN con switcher; **tema** dark / light / auto.
 - **Dedup SHA256**: ricaricare lo stesso file non occupa spazio due volte.
-- **Cestino**: eliminazione reversibile, purga automatica dopo N giorni.
+- **Cestino**: eliminazione reversibile; `php bin/cli.php purge-trash 30`
+  libera i file dopo N giorni.
 - **E2E encryption**: link condivisi cifrati nel browser con AES-GCM; la
   chiave non lascia mai il client (PBKDF2, salt/IV nel frammento URL).
 - **Operazioni bulk**: seleziona e rianalizza, tagga o elimina in blocco.
@@ -110,15 +115,16 @@ PHP 8.1+, estensioni sopra, e `sqlite3` CLI opzionale per ispezione.
 1. **Crea un sotto-dominio** (es. `paste.example.com`) che punti alla
    `public_html/`.
 2. **Carica via FTP** il contenuto della cartella `public/` nella root
-   del dominio (es. `public_html/`) e tutto il resto (`app/`, `config/`,
+   del dominio (es. `public_html/`) e tutto il resto (`app/`,
    `lang/`, `bin/`, `storage/`) **fuori da `public_html/`**, ad esempio in
    `private/pastefilez/`.
 3. **Modifica `public/index.php`** se la root dell'app non è un livello sopra
    la webroot (in Netsons: `public_html/` in `/home/<user>/domains/<domain>/public_html`
    e l'app in `/home/<user>/domains/<domain>/private/pastefilez`):
    - `require __DIR__ . '/../private/pastefilez/app/Core/autoload.php';`
-   - assicurati che `config/config.php` punti a
-     `APP_ROOT = '/home/<user>/domains/<domain>/private/pastefilez'`.
+   - il percorso della root è risolto in `app/Core/autoload.php`
+     (`dirname(__DIR__, 2)`): se sposti `public/` fuori dall'app, correggi
+     i `require` lì.
 4. **Crea `.env`** partendo da `.env.example`; imposta:
    - `APP_URL=https://paste.example.com`
    - `COOKIE_SECURE=true`
@@ -138,8 +144,16 @@ docker compose up -d
 # apri http://localhost:8080/install
 ```
 
-Il volume `./storage` conserva database, file e chiavi. Per l'AI in locale
-aggiungi un `OLLAMA_BASE_URL` puntato al tuo Ollama.
+Il volume `./storage` conserva database, file e chiavi.
+
+L'URL di Ollama **non** si imposta dal `.env`: è un'impostazione per utente.
+Aggiungi il provider in **Settings → AI → Ollama**, lascia la chiave vuota e
+metti la base URL (di default `http://127.0.0.1:11434`, quindi dall'interno
+del container). Per Ollama sulla stessa macchina in dev locale usa
+`http://host.docker.internal:11434`.
+
+Se il container non raggiunge Ollama, il fallback è locale e ogni analisi
+fallisce con `no_provider`.
 
 ### Sviluppo locale
 
@@ -151,14 +165,23 @@ php -S 127.0.0.1:8000 -t public
 
 Apri <http://127.0.0.1:8000/install>, crea l'admin, accedi.
 
-Per testare senza HTTPS: `COOKIE_SECURE=false` in `.env`.
+**Se il pulsante "Installa" non fa nulla**, è quasi sempre `APP_URL`: il form
+incolla l'installazione e, con la porta sbagliata, il POST non raggiunge mai
+il server (e con `display_errors` disattivato non vedi nessun errore).
+
+```bash
+php bin/cli.php set APP_URL http://127.0.0.1:8000
+```
+
+Per testare senza HTTPS tieni `COOKIE_SECURE=false`. Se la porta 8000 è
+occupata, scegline un'altra e aggiornala anche in `APP_URL`.
 
 ---
 
 ## Aggiornamento
 
-1. Backup di `storage/` e `config/.env`.
-2. Carica i nuovi file (eccetto `storage/` e `config/.env`).
+1. Backup di `storage/` e `.env`.
+2. Carica i nuovi file (eccetto `storage/` e `.env`).
 3. Apri la home: se serve una migration, gira automaticamente.
 4. Verifica in `/admin/audit` che non ci siano errori.
 
@@ -222,7 +245,7 @@ key prima di essere scritta in `storage/keys/`.
 
 1. Crea un OAuth Client (tipo **Web application**) su
    <https://console.cloud.google.com/apis/credentials>.
-2. Aggiungi `https://paste.example.com/settings/cloud/callback` come
+2. Aggiungi `https://paste.example.com/settings/cloud/google/callback` come
    **Authorized redirect URI**.
 3. Incolla Client ID e Secret in **Settings → Cloud → Google Drive**.
 
@@ -230,7 +253,7 @@ key prima di essere scritta in `storage/keys/`.
 
 1. Crea un'app su <https://www.dropbox.com/developers/apps> con scope
    `files.content.write` e `files.content.read`.
-2. Aggiungi `https://paste.example.com/settings/cloud/callback` come
+2. Aggiungi `https://paste.example.com/settings/cloud/google/callback` come
    redirect URI.
 3. PKCE: la app genera il `code_verifier` in locale; non serve secret.
 
@@ -285,10 +308,7 @@ pastefilez/
 │   └── Views/          # layouts/, auth/, items/, share/, settings/, admin/, errors/
 ├── bin/
 │   ├── cli.php         # CLI
-│   └── mac-clipboard-monitor/  # agent macOS
-├── config/
-│   ├── config.php
-│   └── .env(.example)
+│   └── mac-clipboard-monitor/  # companion macOS
 ├── lang/
 │   ├── it.json
 │   └── en.json
@@ -311,22 +331,37 @@ pastefilez/
 
 ## API REST
 
-Tutti gli endpoint richiedono `Authorization: Bearer <jwt>`.
+Gli endpoint sotto richiedono `Authorization: Bearer <access_token>`.
+L'unica eccezione è `auth/login`.
 
 ```
-POST   /api/v1/auth/login              {email, password} -> {token, refresh}
-POST   /api/v1/auth/refresh            {refresh}        -> {token}
-POST   /api/v1/auth/logout
+POST   /api/v1/auth/login     {email, password} -> {access_token, refresh_token, expires_in}
+POST   /api/v1/auth/refresh   {refresh_token}   -> {access_token, refresh_token, expires_in}
 GET    /api/v1/items?folder=&type=&q=&page=
-POST   /api/v1/items                   multipart: file
+POST   /api/v1/items          multipart: file
 GET    /api/v1/items/{id}
 DELETE /api/v1/items/{id}
 GET    /api/v1/search?q=&hybrid=true
-POST   /api/v1/clipboard               multipart: file|image|text
-POST   /api/v1/ai/ask                  {messages: [{role, content}]}
+POST   /api/v1/clipboard      multipart: file
+GET    /api/v1/models
+POST   /api/v1/ai/analyze     {item_id, force}
 ```
 
-Il JWT è firmato HS256 con la master key, scadenza 15 min, refresh 7 giorni.
+Il JWT è firmato HS256 con la master key, scadenza **15 minuti**
+(`expires_in: 900`). Il refresh token dura **30 giorni**, viene ruotato a ogni
+uso e, se riutilizzato, **revoca l'intera famiglia** di token.
+
+```bash
+# login
+curl -X POST http://localhost:8000/api/v1/auth/login \
+     -H 'Content-Type: application/json' \
+     -d '{"email":"you@example.com","password":"..."}'
+# -> {"access_token":"eyJ...","refresh_token":"...","expires_in":900}
+```
+
+Ogni token validato consuma un bucket di rate limit (600/h letture,
+120/h scritture, 20/h AI, 120/h auth). Il client macOS e gli script possono
+passare `?api_token=<token>` al posto dell'header Bearer.
 
 ---
 
@@ -336,8 +371,10 @@ Il JWT è firmato HS256 con la master key, scadenza 15 min, refresh 7 giorni.
 php bin/cli.php backup /tmp/pz-backup.zip
 ```
 
-Lo zip contiene `app.sqlite`, `storage/files/`, `storage/thumbs/`,
-`storage/keys/`, `storage/.key` e `config/.env`. **Conservalo offline.**
+Lo zip contiene `storage/app.sqlite`, `storage/files/`, `storage/thumbs/`,
+`storage/.key` e il tuo `.env`. **Conservalo offline e trattalo come un
+segreto**: chi ha il backup può decifrare tutto. Sono esclusi
+`storage/logs/` e `storage/tmp/`.
 
 Per ripristinare:
 

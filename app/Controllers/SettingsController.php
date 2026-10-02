@@ -69,6 +69,18 @@ final class SettingsController extends Controller
         Response::redirect('/settings?tab=security');
     }
 
+    public function totpSetup(): void
+    {
+        $user = Auth::require();
+        $secret = Session::get('totp_pending_secret');
+        if (!$secret) {
+            $secret = TOTP::generateSecret();
+            Session::set('totp_pending_secret', $secret);
+        }
+        $uri = TOTP::provisioningUri($secret, $user['email'], (string)Config::get('app_name'));
+        $this->view('settings/totp_setup', ['secret' => $secret, 'uri' => $uri, 'user' => $user], 'centered');
+    }
+
     public function totpEnable(): void
     {
         $user = Auth::require();
@@ -197,8 +209,8 @@ final class SettingsController extends Controller
 
     public function cloud(): void
     {
-        $user = Auth::require();
-        $this->view('settings/cloud', []);
+        Auth::requireGrant('config.write');
+        Response::redirect('/settings?tab=cloud');
     }
 
     public function cloudSave(): void

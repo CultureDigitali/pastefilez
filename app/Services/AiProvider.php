@@ -20,7 +20,6 @@ final class AiProvider
 
     public static function factory(string $provider, string $key, ?int $userId = null): ?BaseAiProvider
     {
-        if ($key === '') return null;
         if ($provider === 'ollama') {
             $base = self::DEFAULT_OLLAMA_BASE;
             if ($userId !== null) {
@@ -35,6 +34,7 @@ final class AiProvider
             }
             return new OllamaClient($key, $base);
         }
+        if ($key === '') return null;
         $base = self::BASE_URLS[$provider] ?? null;
         if ($base === null) return null;
         return match ($provider) {
@@ -67,7 +67,8 @@ final class AiProvider
             $provider = (string)$row['provider'];
         }
         $key = Crypto::decryptFromBase64((string)$row['encrypted_key']);
-        if ($key === null || $key === '') return null;
+        if ($key === null) $key = '';
+        if ($key === '' && $provider !== 'ollama') return null;
         return self::factory($provider, $key, $userId);
     }
 

@@ -16,7 +16,10 @@ function url(string $path = ''): string
 
 function redirect(string $path): void
 {
-    header('Location: ' . url(ltrim($path, '/')));
+    $target = preg_match('#^[a-z][a-z0-9+.-]*://#i', $path) === 1
+        ? $path
+        : url(ltrim($path, '/'));
+    header('Location: ' . $target);
     exit;
 }
 

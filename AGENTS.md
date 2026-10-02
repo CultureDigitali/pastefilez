@@ -8,10 +8,11 @@ PasteFilez. Da leggere **prima** di toccare qualunque file.
 ## Comandi rapidi
 
 ```bash
-php tests/run.php                     # test suite (1064 asserzioni, 18 suite)
+php tests/run.php                     # test suite (1178 asserzioni, 19 suite)
 php bin/cli.php                       # help
 php bin/cli.php install               # installazione
 php bin/cli.php list-users            # utenti
+php bin/cli.php set-role <email> <owner>   # recovery owner perso
 php bin/cli.php process-jobs 25       # processa coda AI
 php bin/cli.php purge-trash 30        # purge cestino >30gg
 php bin/cli.php vacuum                # manutenzione DB
@@ -43,7 +44,7 @@ pubblica su hosting condiviso.
 
 ## Schema del database
 
-21 tabelle + 1 tabella FTS5 + `schema_meta`, create in `app/Core/Db.php::migrate()`
+20 tabelle + 1 tabella FTS5 + `schema_meta`, create in `app/Core/Db.php::migrate()`
 (migrazioni 1..8, versione corrente in `schema_meta.version`):
 
 ```
@@ -52,7 +53,7 @@ tags           api_keys       api_tokens      api_refresh_tokens
 ai_models_cache cloud_tokens   jobs            audit_log
 settings       sessions       rate_limits     oauth_states
 webhooks       webhook_deliveries  e2e_shares  recovery_codes
-fts_items      (FTS5 virtual, trigger su items)
+items_fts      (FTS5 external-content su items, trigger su insert/update/delete)
 schema_meta    (versione schema)
 ```
 
@@ -69,7 +70,9 @@ Il master key è `storage/.key`, fuori dal DB.
 - **E2E encryption**: `/items/{id}/share-e2e`, PBKDF2+AES-GCM, salt/IV in URL hash.
 - **Bulk operations**: `/items/bulk` POST (delete, tag, reanalyze) + floating action bar.
 - **Webhooks**: `/settings/webhooks/*` + `/hooks/{token}` POST. Outgoing: HMAC-SHA256, events `item.uploaded`, `item.deleted`, `share.created`, `share.opened`. Incoming: multipart file upload.
-- **PDF text extraction**: `PdfExtractor` puro-PHP (no shell). `AnalysisService::describe()` estrae testo e lo indicizza.
+- **PDF text extraction**: `PdfExtractor` puro-PHP (no shell). Decomprime gli
+  stream Flate e scarta l'output non leggibile, così la spazzatura binaria
+  non finisce nell'indice FTS.
 - **RAG chat**: `/chat` + `/chat/ask`. BM25+cosine (RRF), top-8 items come contesto.
 - **Ollama provider**: `OllamaClient extends BaseAiProvider`. Base URL configurabile in settings (default `http://127.0.0.1:11434`). API key opzionale.
 - **PWA**: `manifest.webmanifest`, `sw.js` (cache **solo** `/assets/*`, mai contenuti privati), icons 192/512, share_target POST /upload.
@@ -86,8 +89,8 @@ Il master key è `storage/.key`, fuori dal DB.
 - **ItemIngest**: unico percorso di creazione item. Usato da `/upload`,
   `/upload/clipboard`, `/upload/url`, `/api/v1/items`, `/api/v1/clipboard`.
   Non duplicare la logica MIME/quota/dedup/thumb.
-- **ApiThrottle**: rate limit su `/api/v1/*` con 4 tier (`read` 600/h,
-  `write` 120/h, `ai` 20/h, `auth` 30/h). **L'identità viene risolta solo da
+- **ApiThrottle**: rate limit su `/api/v1/*` con 5 tier (`read` 600/h,
+  `write` 120/h, `ai` 20/h, `auth` 120/h, `search` 120/h). **L'identità viene risolta solo da
   credenziali validate** (`ApiAuth::user(true)`); per un caller non autenticato
   si usa l'IP, mai un token grezzo fornito dal client (altrimenti ruotare
   l'header azzera il bucket). In più ogni utente validato consuma anche un
@@ -113,8 +116,9 @@ Il master key è `storage/.key`, fuori dal DB.
   corrente **non** viene consumato dalla stessa request.
 - **Image editor**: `/items/{id}/edit` + `/items/{id}/edit/save`. Canvas editor con: testo, frecce, linee, rettangoli, sottolineatura, disegno libero. Salva come nuovo item PNG.
 
-FTS5 virtual table `fts_items` (contentless) sincronizzata da trigger su
-`items`. I vettori embedding vivono in `embeddings` come BLOB float32.
+Tabella FTS5 `items_fts` (external-content, `content='items'`) sincronizzata da
+trigger su `items`. I vettori embedding vivono in `items.ai_embedding`
+(BLOB float32 normalizzati).
 
 Per ispezionare:
 
@@ -125,33 +129,36 @@ sqlite3 storage/app.sqlite "SELECT id, original_name, mime, size, ai_status FROM
 
 ## Flusso upload
 
-1. `UploadController::store()` valida CSRF, MIME (via `finfo`), quota.
-2. `StorageService::store()` scrive su `storage/files/<user>/<random>`
+1. `UploadController::upload()` valida CSRF e delega a `ItemIngest::fromUpload()`,
+   che valida MIME (via `finfo`), quota e dedup.
+2. `StorageService::put()` scrive su `storage/files/<user>/<random>`
    (cifrato AES-256-GCM se abilitato).
 3. `ThumbnailService::make()` (GD) per immagini/video → `storage/thumbs/`.
 4. `Item` model inserisce la riga con `ai_status='pending'`.
-5. `JobService::enqueue('ai_describe', itemId)`.
+5. `JobService::enqueue('analyze', $userId, ['item_id' => $id], 0)`.
 6. `JobService::process()` (inline o da `cli process-jobs`):
-   - `AnalysisService::describe()` chiama il modello vision → descrizione,
-     tags, OCR.
+   - `AnalysisService::run()` chiama il modello vision → descrizione,
+     tags, OCR; per i PDF estrae il testo con `PdfExtractor`.
    - `AnalysisService::embed()` calcola embedding se un modello è
      configurato.
 
 ## Hardening checklist (per chi fa review)
 
 - [x] CSRF token in form + verifica in `Csrf::validateRequest()`.
-- [x] Cookie `HttpOnly`, `Secure` (in HTTPS), `SameSite=Lax`.
-- [x] Header security in `Bootstrap::sendSecurityHeaders()`.
+- [x] Cookie `HttpOnly`, `Secure` (in HTTPS), `SameSite` Strict o Lax.
+- [x] Header security in `Bootstrap::securityHeaders()`.
 - [x] Argon2id via `Crypto::passwordHash()`.
-- [x] Lockout 5/15min in `Auth::login()`.
-- [x] Rate limit 60/h su `/api/v1/*` via `RateLimiter::hit()`.
+- [x] Lockout in `Auth::attempt()`: 5 errori, poi backoff esponenziale
+      (60s, 120s, 240s, ... fino a 64 min).
+- [x] Rate limit su `/api/v1/*` via `ApiThrottle` (5 tier: read 600/h, write
+      120/h, ai 20/h, auth 120/h, search 120/h), registrato come middleware.
 - [x] Audit log su: login, login_fail, password_reset, share_create,
        share_unlock, settings_update, user_create, user_update, key_rotate.
 - [x] Master key 32 byte random in `storage/.key` (0600).
 - [x] File encryption at rest opzionale (toggle in Settings).
 - [x] MIME check server-side via `finfo` (non solo estensione).
 - [x] Path traversal neutralizzato da basename + random.
-- [x] Upload size limit configurable (`UPLOAD_MAX_MB`).
+- [x] Upload size limit configurable (`MAX_UPLOAD_MB`).
 - [x] `.htaccess` nega accesso a `.env`, `storage/`, `*.sqlite`, `.key`.
 - [x] `php_flag engine off` è scoped con `FilesMatch` e riattivato in
       `public/.htaccess` per il front controller.
@@ -204,8 +211,8 @@ sqlite3 storage/app.sqlite "SELECT id, original_name, mime, size, ai_status FROM
   freehand. Salva come nuovo PNG via `canvas.toDataURL()`.
 - **Modificare RAG**: `app/Services/RagService::ask()` combina BM25 + cosine
   (RRF, k=60), top-8 items, chiama chat model con contesto.
-- **Modificare webhooks**: `WebhookService::dispatch()` chiamato da
-  `UploadController` per `item.uploaded`. Outgoing: HMAC-SHA256 secret opzionale.
+- **Modificare webhooks**: `WebhookService::dispatch()` accoda un job (non
+  esegue in linea) ed è chiamato da `ItemIngest` per `item.uploaded`. Outgoing: HMAC-SHA256 secret opzionale.
   Incoming: `/hooks/{token}` POST multipart, crea item direttamente.
 
 ## Test manuali minimi
