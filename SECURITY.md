@@ -10,7 +10,8 @@
 
 **Non aprire una issue pubblica.**
 
-Scrivi a `security@example.com` con:
+Usa il [private vulnerability reporting](https://github.com/CultureDigitali/pastefilez/security/advisories/new)
+di GitHub, oppure scrivi a `dev@culture.digital` con:
 
 - descrizione del problema e impatto atteso;
 - passaggi per riprodurlo;

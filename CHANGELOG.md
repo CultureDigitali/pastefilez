@@ -45,4 +45,4 @@ Prima release pubblica.
 - E2E: chiave e materiale crittografico restano nel frammento URL.
 - Header: CSP, HSTS, X-Frame-Options DENY, nosniff, no-referrer.
 - Log di audit su login, share, impostazioni, azioni admin.
-- 1185 asserzioni di test automatici.
+- 1240 asserzioni di test automatici.

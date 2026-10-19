@@ -8,7 +8,7 @@ PasteFilez. Da leggere **prima** di toccare qualunque file.
 ## Comandi rapidi
 
 ```bash
-php tests/run.php                     # test suite (1185 asserzioni, 19 suite)
+php tests/run.php                     # test suite (1240 asserzioni, 19 suite)
 php bin/cli.php                       # help
 php bin/cli.php install               # installazione
 php bin/cli.php list-users            # utenti
@@ -241,7 +241,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
 
 ```bash
 # pulizia completa (cancella tutto tranne codice e config)
-rm -rf storage/app.sqlite* storage/.key storage/files/* storage/thumbs/* storage/keys/* storage/logs/*
+rm -rf storage/app.sqlite* storage/.key storage/files/* storage/thumbs/* storage/logs/*
 php bin/cli.php install
 ```
 

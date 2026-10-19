@@ -19,7 +19,7 @@ fornitore"* trova quello, non gli altri trecento PDF.
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-success.svg)
-![Tests](https://img.shields.io/badge/tests-1185%20passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-1240%20passing-brightgreen.svg)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-blue.svg)
 
 > [!NOTE]
@@ -138,7 +138,7 @@ PHP 8.1+, estensioni sopra, e `sqlite3` CLI opzionale per ispezione.
 ### Docker
 
 ```bash
-git clone <repo> pastefilez && cd pastefilez
+git clone https://github.com/CultureDigitali/pastefilez.git && cd pastefilez
 docker compose up -d
 # apri http://localhost:8080/install
 ```
@@ -194,10 +194,12 @@ Esegui `php bin/cli.php` per l'elenco:
 php bin/cli.php install                       # installazione interattiva
 php bin/cli.php create-user <email>           # crea utente (genera password)
 php bin/cli.php reset-password <email>        # reset password
+php bin/cli.php set-role <email> <role>       # owner / admin / operator / user
 php bin/cli.php list-users                    # lista utenti
 php bin/cli.php rotate-master-key             # ruota la master key
 php bin/cli.php backup /tmp/pz-backup.zip     # backup db + storage
 php bin/cli.php process-jobs [n]              # processa n job AI (default 10)
+php bin/cli.php purge-trash [days]            # elimina cestino più vecchio di N giorni
 php bin/cli.php vacuum                        # vacuum + pulizia log
 php bin/cli.php set COOKIE_SECURE true        # scrive in .env
 ```
@@ -214,19 +216,20 @@ php bin/cli.php set COOKIE_SECURE true        # scrive in .env
 
 ## AI providers
 
-Tre provider supportati, intercambiabili:
+Quattro provider supportati, intercambiabili:
 
 | Provider    | Chat | Vision | Embedding | Note                          |
 |-------------|:----:|:------:|:---------:|-------------------------------|
 | OpenRouter  |  ✓   |   ✓    |    ✓*     | catalogo enorme, costo basso  |
 | NVIDIA NIM  |  ✓   |   ✓    |    ✓      | embedding NVIDIA consigliati   |
 | Groq        |  ✓   |   ✓    |    ✗      | latenza bassissima, *no emb.* |
+| Ollama      |  ✓   |   ✓    |    ✓      | locale, nessun dato esce      |
 
 \* dipende dal modello; non tutti gli embedding di OpenRouter sono stabili.
 
 In **Settings → AI** si inseriscono le chiavi, si testano, e si sceglie un
 modello di default per ogni scopo. La chiave viene cifrata con la master
-key prima di essere scritta in `storage/keys/`.
+key prima di essere scritta nella tabella `api_keys`.
 
 ### Modelli suggeriti
 
@@ -256,7 +259,7 @@ key prima di essere scritta in `storage/keys/`.
    redirect URI.
 3. PKCE: la app genera il `code_verifier` in locale.
 
-I refresh token sono cifrati con la master key in `storage/keys/`.
+I refresh token sono cifrati con la master key nella tabella `cloud_tokens`.
 
 ---
 
@@ -282,8 +285,9 @@ defaults write com.pastefilez.clipboard api_token <API_TOKEN>
 ```
 
 Il token API si genera in **Settings → API** da qualsiasi utente
-autenticato e vale 30 giorni. Non esistono permessi dedicati: l'accesso ai
-dati è per-owner (`user_id`).
+autenticato e non scade: resta valido finché non lo revochi dalla stessa
+pagina. Non esistono permessi dedicati: l'accesso ai dati è per-owner
+(`user_id`).
 
 ### Auto-start al login
 
@@ -318,13 +322,16 @@ pastefilez/
 │   ├── .htaccess
 │   └── assets/
 ├── storage/            # non in public_html/
-│   ├── app.sqlite
+│   ├── app.sqlite      # utenti, item, chiavi provider cifrate, token cloud
 │   ├── .key            # master key
 │   ├── files/          # blob cifrati o in chiaro
 │   ├── thumbs/
-│   ├── keys/           # chiavi provider cifrate
+│   ├── e2e/            # payload delle share E2E (ciphertext)
+│   ├── tmp/            # plaintext temporaneo per i download cifrati
+│   ├── cache/
 │   └── logs/
-└── docs/
+├── docs/
+└── tests/              # 19 suite, 1240 asserzioni
 ```
 
 ---
