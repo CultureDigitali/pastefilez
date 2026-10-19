@@ -20,6 +20,7 @@ fornitore"* trova quello, non gli altri trecento PDF.
 ![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-success.svg)
 ![Tests](https://img.shields.io/badge/tests-1240%20passing-brightgreen.svg)
+![CI](https://github.com/CultureDigitali/pastefilez/actions/workflows/ci.yml/badge.svg)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-blue.svg)
 
 > [!NOTE]
